@@ -147,6 +147,38 @@ jobs:
           mkdir -p ~/private_keys
           printf '%s\n' "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Generate DMG background
+        run: |
+          python3 -m pip install --break-system-packages --quiet Pillow
+          python3 <<'PYEOF'
+          from PIL import Image, ImageDraw, ImageFont
+
+          W, H = 660, 400
+          img = Image.new('RGB', (W, H), (246, 246, 248))
+          draw = ImageDraw.Draw(img)
+
+          # Arrow between app icon (center ~220) and Applications (center ~520)
+          cy = 210
+          arrow_color = (195, 195, 195)
+          draw.rectangle([270, cy - 2, 440, cy + 2], fill=arrow_color)
+          draw.polygon([(455, cy), (435, cy - 10), (435, cy + 10)], fill=arrow_color)
+
+          try:
+              font = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 14)
+          except Exception:
+              font = ImageFont.load_default()
+          text = 'Drag to Applications'
+          bbox = draw.textbbox((0, 0), text, font=font)
+          tw = bbox[2] - bbox[0]
+          draw.text(((W - tw) // 2, cy + 30), text, fill=(160, 160, 160), font=font)
+
+          img.save('/tmp/dmg-background.png')
+          print('DMG background generated')
+          PYEOF
+
       - name: Build Tauri app (aarch64)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -225,12 +257,26 @@ jobs:
             rm -f "$DMG_PATH"
 
             STAGE_DIR=$(mktemp -d)
-            cp -R "$APP_PATH" "$STAGE_DIR/"
-            ln -s /Applications "$STAGE_DIR/Applications"
+            ditto "$APP_PATH" "$STAGE_DIR/NX Auto Clicker.app"
 
-            hdiutil create -volname "NX Auto Clicker" -srcfolder "$STAGE_DIR" \
-              -ov -format UDZO "$DMG_DIR/$DMG_NAME"
-            codesign --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" "$DMG_DIR/$DMG_NAME"
+            create-dmg \
+              --volname "NX Auto Clicker" \
+              --background "/tmp/dmg-background.png" \
+              --window-size 660 400 \
+              --window-pos 200 120 \
+              --icon-size 80 \
+              --icon "NX Auto Clicker.app" 180 170 \
+              --app-drop-link 480 170 \
+              --hide-extension "NX Auto Clicker.app" \
+              --codesign "${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+              --no-internet-enable \
+              "$DMG_DIR/$DMG_NAME" \
+              "$STAGE_DIR" && DMG_EXIT=0 || DMG_EXIT=$?
+
+            if [ "$DMG_EXIT" -ne 0 ] && [ "$DMG_EXIT" -ne 2 ]; then
+              echo "::error::create-dmg failed with exit code $DMG_EXIT"
+              exit "$DMG_EXIT"
+            fi
             rm -rf "$STAGE_DIR"
           fi
 
@@ -312,12 +358,26 @@ jobs:
             rm -f "$DMG_PATH"
 
             STAGE_DIR=$(mktemp -d)
-            cp -R "$APP_PATH" "$STAGE_DIR/"
-            ln -s /Applications "$STAGE_DIR/Applications"
+            ditto "$APP_PATH" "$STAGE_DIR/NX Auto Clicker.app"
 
-            hdiutil create -volname "NX Auto Clicker" -srcfolder "$STAGE_DIR" \
-              -ov -format UDZO "$DMG_DIR/$DMG_NAME"
-            codesign --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" "$DMG_DIR/$DMG_NAME"
+            create-dmg \
+              --volname "NX Auto Clicker" \
+              --background "/tmp/dmg-background.png" \
+              --window-size 660 400 \
+              --window-pos 200 120 \
+              --icon-size 80 \
+              --icon "NX Auto Clicker.app" 180 170 \
+              --app-drop-link 480 170 \
+              --hide-extension "NX Auto Clicker.app" \
+              --codesign "${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+              --no-internet-enable \
+              "$DMG_DIR/$DMG_NAME" \
+              "$STAGE_DIR" && DMG_EXIT=0 || DMG_EXIT=$?
+
+            if [ "$DMG_EXIT" -ne 0 ] && [ "$DMG_EXIT" -ne 2 ]; then
+              echo "::error::create-dmg failed with exit code $DMG_EXIT"
+              exit "$DMG_EXIT"
+            fi
             rm -rf "$STAGE_DIR"
           fi
 
