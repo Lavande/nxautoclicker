@@ -223,9 +223,15 @@ jobs:
           if [ -n "$DMG_PATH" ]; then
             DMG_NAME=$(basename "$DMG_PATH")
             rm -f "$DMG_PATH"
-            hdiutil create -volname "NX Auto Clicker" -srcfolder "$APP_PATH" \
+
+            STAGE_DIR=$(mktemp -d)
+            cp -R "$APP_PATH" "$STAGE_DIR/"
+            ln -s /Applications "$STAGE_DIR/Applications"
+
+            hdiutil create -volname "NX Auto Clicker" -srcfolder "$STAGE_DIR" \
               -ov -format UDZO "$DMG_DIR/$DMG_NAME"
             codesign --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" "$DMG_DIR/$DMG_NAME"
+            rm -rf "$STAGE_DIR"
           fi
 
       - name: Build Tauri app (x86_64)
@@ -304,9 +310,15 @@ jobs:
           if [ -n "$DMG_PATH" ]; then
             DMG_NAME=$(basename "$DMG_PATH")
             rm -f "$DMG_PATH"
-            hdiutil create -volname "NX Auto Clicker" -srcfolder "$APP_PATH" \
+
+            STAGE_DIR=$(mktemp -d)
+            cp -R "$APP_PATH" "$STAGE_DIR/"
+            ln -s /Applications "$STAGE_DIR/Applications"
+
+            hdiutil create -volname "NX Auto Clicker" -srcfolder "$STAGE_DIR" \
               -ov -format UDZO "$DMG_DIR/$DMG_NAME"
             codesign --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" "$DMG_DIR/$DMG_NAME"
+            rm -rf "$STAGE_DIR"
           fi
 
       - name: Upload artifacts to release
